@@ -268,17 +268,54 @@ function showError(message) {
 }
 
 function exportReport() {
+    // 1. Check if there is a report to save
     if (!currentReport) return;
+
+    // 2. Create a formatted text string
+    let textContent = `GITHUB CANDIDATE REPORT\n`;
+    textContent += `=======================\n\n`;
+    textContent += `Candidate: ${currentReport.candidate_name}\n`;
+    textContent += `Score:     ${currentReport.technical_score}/100\n`;
+    textContent += `Level:     ${currentReport.estimated_level}\n`;
+    textContent += `Verdict:   ${currentReport.hiring_verdict}\n\n`;
+
+    textContent += `-----------------------\n`;
+    textContent += `PRIMARY LANGUAGES\n`;
+    textContent += `-----------------------\n`;
+    // Join the array items with a newline and a dash
+    textContent += `- ${currentReport.primary_languages.join('\n- ')}\n\n`;
+
+    textContent += `-----------------------\n`;
+    textContent += `TECHNICAL STRENGTHS\n`;
+    textContent += `-----------------------\n`;
+    textContent += `- ${currentReport.technical_strengths.join('\n- ')}\n\n`;
+
+    textContent += `-----------------------\n`;
+    textContent += `RED FLAGS\n`;
+    textContent += `-----------------------\n`;
+    textContent += `- ${currentReport.red_flags.join('\n- ')}\n\n`;
+
+    textContent += `-----------------------\n`;
+    textContent += `SUMMARY\n`;
+    textContent += `-----------------------\n`;
+    textContent += `${currentReport.summary_report}\n`;
+
+    // 3. Create a Blob (file object) with "text/plain" type
+    const blob = new Blob([textContent], { type: 'text/plain' });
     
-    const dataStr = JSON.stringify(currentReport, null, 2);
-    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+    // 4. Create a temporary URL for the file
+    const url = URL.createObjectURL(blob);
+
+    // 5. Create a download link and click it programmatically
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `github-report-${usernameInput.value}.txt`; // .txt extension
+    document.body.appendChild(a);
+    a.click();
     
-    const exportFileDefaultName = `github-report-${usernameInput.value}.json`;
-    
-    const linkElement = document.createElement('a');
-    linkElement.setAttribute('href', dataUri);
-    linkElement.setAttribute('download', exportFileDefaultName);
-    linkElement.click();
+    // 6. Cleanup
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 }
 
 function resetForm() {
