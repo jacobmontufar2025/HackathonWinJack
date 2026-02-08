@@ -474,6 +474,26 @@ footer {
     opacity: 0.7;
 }
 
+/* Add this to your existing style.css file */
+/* Updated DVD Logo with PNG */
+.dvd-logo {
+    position: fixed;
+    width: 100px; /* Adjust based on your PNG size */
+    height: 60px; /* Adjust based on your PNG size */
+    background-image: url('dvd-logo.png'); /* Your PNG file */
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    z-index: 9999;
+    pointer-events: none;
+    opacity: 0.9;
+    transition: opacity 0.3s;
+}
+
+.dvd-logo:hover {
+    opacity: 1;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .input-group {

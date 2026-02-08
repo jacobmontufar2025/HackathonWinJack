@@ -325,6 +325,97 @@ function resetForm() {
     usernameInput.focus();
 }
 
+// DVD Logo Animation - Add this to your script.js file
+function createDvdLogo() {
+    const dvdLogo = document.createElement('div');
+    dvdLogo.className = 'dvd-logo';
+    document.body.appendChild(dvdLogo);
+    
+    // Adjust these based on your PNG dimensions
+    const logoWidth = 120;  // Your PNG width
+    const logoHeight = 60;  // Your PNG height
+    
+    let x = Math.random() * (window.innerWidth - logoWidth);
+    let y = Math.random() * (window.innerHeight - logoHeight);
+    let xSpeed = 2;
+    let ySpeed = 2;
+    
+    // Update logo position
+    function updatePosition() {
+        x += xSpeed;
+        y += ySpeed;
+        
+        // Bounce off walls
+        if (x + logoWidth >= window.innerWidth || x <= 0) {
+            xSpeed = -xSpeed;
+        }
+        
+        if (y + logoHeight >= window.innerHeight || y <= 0) {
+            ySpeed = -ySpeed;
+        }
+        
+        // Apply position
+        dvdLogo.style.left = `${x}px`;
+        dvdLogo.style.top = `${y}px`;
+        
+        // Continue animation
+        requestAnimationFrame(updatePosition);
+    }
+    
+    // Start animation
+    updatePosition();
+    
+    // Pause on hover
+    dvdLogo.addEventListener('mouseenter', () => {
+        const tempXSpeed = xSpeed;
+        const tempYSpeed = ySpeed;
+        xSpeed = 0;
+        ySpeed = 0;
+        
+        dvdLogo.addEventListener('mouseleave', () => {
+            xSpeed = tempXSpeed;
+            ySpeed = tempYSpeed;
+        }, { once: true });
+    });
+    
+    // Make it draggable for fun
+    let isDragging = false;
+    let dragOffsetX, dragOffsetY;
+    
+    dvdLogo.style.pointerEvents = 'auto';
+    
+    dvdLogo.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        dragOffsetX = e.clientX - x;
+        dragOffsetY = e.clientY - y;
+        dvdLogo.style.cursor = 'grabbing';
+    });
+    
+    document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        
+        x = e.clientX - dragOffsetX;
+        y = e.clientY - dragOffsetY;
+        
+        // Keep within bounds
+        x = Math.max(0, Math.min(x, window.innerWidth - 120));
+        y = Math.max(0, Math.min(y, window.innerHeight - 60));
+        
+        dvdLogo.style.left = `${x}px`;
+        dvdLogo.style.top = `${y}px`;
+    });
+    
+    document.addEventListener('mouseup', () => {
+        if (isDragging) {
+            isDragging = false;
+            dvdLogo.style.cursor = 'grab';
+        }
+    });
+}
+
+// Create DVD logo when page loads
+window.addEventListener('load', createDvdLogo);
+
 // Backend Integration Instructions
 console.log(`
 GitHub Candidate Scorer Frontend
