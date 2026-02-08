@@ -330,9 +330,21 @@ function createDvdLogo() {
     const dvdLogo = document.createElement('div');
     dvdLogo.className = 'dvd-logo';
     document.body.appendChild(dvdLogo);
+
+     // --- FIX START: Layering Logic ---
+    // 1. Set logo to a low z-index
+    dvdLogo.style.zIndex = '0'; 
+    dvdLogo.style.position = 'fixed'; // Ensure it floats correctly
+
+    // 2. Force the main container to be ABOVE the logo
+    const mainContainer = document.querySelector('.container');
+    if (mainContainer) {
+        mainContainer.style.position = 'relative'; // Required for z-index to work
+        mainContainer.style.zIndex = '10'; // Higher than the logo
+    }
     
     // Adjust these based on your PNG dimensions
-    const logoWidth = 120;  // Your PNG width
+    const logoWidth = 100;  // Your PNG width
     const logoHeight = 60;  // Your PNG height
     
     let x = Math.random() * (window.innerWidth - logoWidth);
