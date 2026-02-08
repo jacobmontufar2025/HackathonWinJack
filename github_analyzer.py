@@ -1,133 +1,51 @@
-# github_analyzer.py - MODIFICATIONS
 import os
 import json
 import base64
 import requests
 import google.generativeai as genai
 from dotenv import load_dotenv
-import time
-from datetime import datetime
-
-# Import key rotation manager
-try:
-    from config import key_manager
-except ImportError:
-    # Fallback for backward compatibility
-    key_manager = None
 
 load_dotenv()
 
 # --- CONFIGURATION ---
-# REMOVE these lines or comment them out:
-# GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-# GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 
-# Add retry configuration
-MAX_RETRIES = 3
-RETRY_DELAY = 1  # seconds
-
-def get_github_token():
-    """Get token from rotation manager or fallback to env"""
-    if key_manager:
-        token = key_manager.get_github_token()
-        if token:
-            return token
-    
-    # Fallback to environment variable
-    return os.getenv("GITHUB_TOKEN")
-
-def get_google_api_key():
-    """Get Google API key from rotation manager or fallback to env"""
-    if key_manager:
-        api_key = key_manager.get_google_api_key()
-        if api_key:
-            return api_key
-    
-    # Fallback to environment variable
-    return os.getenv("GOOGLE_API_KEY")
-
-def configure_gemini():
-    """Configure Gemini with key rotation"""
-    api_key = get_google_api_key()
-    if api_key:
-        try:
-            genai.configure(api_key=api_key)
-            model = genai.GenerativeModel('gemini-flash-latest', 
-                                          generation_config={"response_mime_type": "application/json"})
-            
-            # Track usage
-            if key_manager:
-                key_manager.update_google_quota(api_key, 1)
-            
-            return model
-        except Exception as e:
-            print(f"⚠️ Failed to configure Gemini with current key: {e}")
-            if key_manager:
-                # Try next key
-                return configure_gemini()
-    
-    print("❌ No valid Google API keys available.")
-    return None
-
-# Initialize model with rotation
-model = configure_gemini()
+# Configure Gemini
+if GOOGLE_API_KEY:
+    genai.configure(api_key=GOOGLE_API_KEY)
+    model = genai.GenerativeModel('gemini-flash-latest', generation_config={"response_mime_type": "application/json"})
+else:
+    model = None
+    print("❌ Google API key not configured. Gemini features disabled.")
 
 def get_headers():
-    """Get headers with rotating tokens"""
     headers = {
         "Accept": "application/vnd.github.v3+json",
         "User-Agent": "GitHub-Candidate-Evaluator"
     }
-    
-    token = get_github_token()
-    if token and "PASTE_" not in token:
-        headers["Authorization"] = f"token {token}"
-        print(f"🔑 Using GitHub token: {token[:8]}...")
-    
+    # Only add Authorization header if we have a valid token
+    if GITHUB_TOKEN and not GITHUB_TOKEN.startswith("ghp_"):  # Check it's not the demo token
+        headers["Authorization"] = f"token {GITHUB_TOKEN}"
+    elif GITHUB_TOKEN:
+        print("⚠️ Using GitHub token (rate limit: 5000 requests/hour)")
+    else:
+        print("⚠️ No GitHub token (rate limit: 60 requests/hour)")
     return headers
 
-def make_github_request(url):
-    """Make GitHub API request with retry logic and token rotation"""
-    for attempt in range(MAX_RETRIES):
-        try:
-            headers = get_headers()
-            response = requests.get(url, headers=headers)
-            
-            # Update rate limit info
-            if 'X-RateLimit-Remaining' in response.headers:
-                remaining = int(response.headers['X-RateLimit-Remaining'])
-                reset_time = int(response.headers['X-RateLimit-Reset'])
-                
-                if key_manager and headers.get('Authorization'):
-                    # Extract token from Authorization header
-                    token = headers['Authorization'].replace('token ', '')
-                    key_manager.update_github_rate_limit(token, remaining, reset_time)
-                
-                print(f"📊 Rate limit: {remaining} requests remaining")
-                
-                if remaining < 10:
-                    print("⚠️ Rate limit critical!")
-            
-            if response.status_code == 403 and 'rate limit' in response.text.lower():
-                print("⏰ Rate limit hit. Retrying with next token...")
-                time.sleep(RETRY_DELAY * (attempt + 1))
-                continue
-            
-            return response
-            
-        except Exception as e:
-            print(f"❌ Request failed (attempt {attempt + 1}/{MAX_RETRIES}): {e}")
-            if attempt < MAX_RETRIES - 1:
-                time.sleep(RETRY_DELAY * (attempt + 1))
-    
-    return None
+def get_headers():
+    headers = {
+        "Accept": "application/vnd.github.v3+json",
+        "User-Agent": "GitHub-Candidate-Evaluator"
+    }
+    if GITHUB_TOKEN and "PASTE_" not in GITHUB_TOKEN:
+        headers["Authorization"] = f"token {GITHUB_TOKEN}"
+    return headers
 
 def get_file_content(owner, repo, path):
-    """Updated to use make_github_request"""
     url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}"
-    response = make_github_request(url)
-    
-    if response and response.status_code == 200:
+    response = requests.get(url, headers=get_headers())
+    if response.status_code == 200:
         data = response.json()
         if "content" in data:
             try:
@@ -137,16 +55,15 @@ def get_file_content(owner, repo, path):
     return None
 
 def get_user_profile(username):
-    """Updated to use make_github_request"""
     print(f"👤 Fetching profile for: {username}...")
     url = f"https://api.github.com/users/{username}"
+    res = requests.get(url, headers=get_headers())
     
-    response = make_github_request(url)
-    if not response or response.status_code != 200:
-        print(f"❌ User not found. API Status: {response.status_code if response else 'No response'}")
+    if res.status_code != 200:
+        print(f"❌ User not found. API Status: {res.status_code}")
         return None
         
-    data = response.json()
+    data = res.json()
     return {
         "username": data.get("login"),
         "name": data.get("name") or data.get("login"),
@@ -156,42 +73,41 @@ def get_user_profile(username):
     }
 
 def get_top_repos(username, limit=3):
-    """Updated to use make_github_request"""
     print(f"📚 Scanning repositories for {username}...")
     url = f"https://api.github.com/users/{username}/repos?per_page=100&sort=updated"
+    res = requests.get(url, headers=get_headers())
     
-    response = make_github_request(url)
-    if not response or response.status_code != 200:
+    if res.status_code != 200:
         return []
 
-    repos = response.json()
+    repos = res.json()
     if not repos:
         return []
 
     valid_repos = []
+    # DIAGNOSTIC: Allow forks so we don't miss your work
     for r in repos:
         valid_repos.append(r)
 
+    # Sort by Stars first, then Updated date
     valid_repos.sort(key=lambda x: (x.get("stargazers_count", 0), x.get("updated_at", "")), reverse=True)
     
     return valid_repos[:limit]
 
 def get_repo_languages(username, repo_name):
-    """Updated to use make_github_request"""
+    """Fetches the official language breakdown from GitHub."""
     url = f"https://api.github.com/repos/{username}/{repo_name}/languages"
-    response = make_github_request(url)
-    if response and response.status_code == 200:
-        return response.json()
+    res = requests.get(url, headers=get_headers())
+    if res.status_code == 200:
+        return res.json()  # Returns dict like {'Java': 20000, 'HTML': 500}
     return {}
-
-# End of fixed code
 
 def scan_repo_content(username, repo_name):
     print(f"   -> Deep scanning project: {repo_name}...")
     
     # 1. Get Metadata & Default Branch (Crucial Fix)
     meta_url = f"https://api.github.com/repos/{username}/{repo_name}"
-    meta_res = make_github_request(meta_url)
+    meta_res = requests.get(meta_url, headers=get_headers())
     
     default_branch = "main" # Fallback
     is_fork = False
@@ -210,7 +126,7 @@ def scan_repo_content(username, repo_name):
     
     # 4. Find Code Files using the CORRECT branch
     tree_url = f"https://api.github.com/repos/{username}/{repo_name}/git/trees/{default_branch}?recursive=1"
-    tree_res = make_github_request(tree_url)
+    tree_res = requests.get(tree_url, headers=get_headers())
     
     code_samples = ""
     found_extensions = []
