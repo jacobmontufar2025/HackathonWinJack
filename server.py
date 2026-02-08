@@ -42,6 +42,76 @@ app = Flask(__name__)
 # Allow requests from your frontend
 CORS(app, resources={r"/*": {"origins": "*"}})  # In production, specify your frontend URL
 
+# server.py - ADD THESE ENDPOINTS
+
+@app.route('/api/keys/status', methods=['GET'])
+def keys_status():
+    """Get current key rotation status"""
+    try:
+        if key_manager:
+            return jsonify(key_manager.keys)
+        else:
+            return jsonify({"error": "Key rotation not configured"}), 501
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/keys/github/add', methods=['POST'])
+def add_github_token():
+    """Add a new GitHub token to rotation"""
+    try:
+        data = request.get_json()
+        token = data.get('token')
+        name = data.get('name')
+        
+        if not token:
+            return jsonify({"error": "Token is required"}), 400
+        
+        if key_manager:
+            key_manager.add_github_token(token, name)
+            return jsonify({"status": "success", "message": "Token added"})
+        else:
+            return jsonify({"error": "Key rotation not configured"}), 501
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/keys/google/add', methods=['POST'])
+def add_google_key():
+    """Add a new Google API key to rotation"""
+    try:
+        data = request.get_json()
+        key = data.get('key')
+        name = data.get('name')
+        
+        if not key:
+            return jsonify({"error": "API key is required"}), 400
+        
+        if key_manager:
+            key_manager.add_google_key(key, name)
+            return jsonify({"status": "success", "message": "Google key added"})
+        else:
+            return jsonify({"error": "Key rotation not configured"}), 501
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/keys/rotate-strategy', methods=['POST'])
+def update_rotation_strategy():
+    """Update rotation strategy"""
+    try:
+        data = request.get_json()
+        
+        if key_manager:
+            if 'github' in data:
+                key_manager.keys['rotation_strategy']['github'] = data['github']
+            if 'google' in data:
+                key_manager.keys['rotation_strategy']['google'] = data['google']
+            
+            key_manager.save_keys()
+            return jsonify({"status": "success", "message": "Strategy updated"})
+        else:
+            return jsonify({"error": "Key rotation not configured"}), 501
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/api/analyze-profile', methods=['POST'])
 def analyze_profile():
     """Get GitHub profile data"""

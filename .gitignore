@@ -28,3 +28,7 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Key files
+keys_config.json
+*.json
